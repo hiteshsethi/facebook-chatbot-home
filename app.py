@@ -2,10 +2,15 @@ import sys
 import json
 
 import requests
-from flask import Flask, request
+from flask import Flask, request, jsonify
 import config
 
 app = Flask(__name__)
+
+
+@app.route("/status")
+def server_status_handler():
+    return jsonify({"success": True, "data": {"running": "ok"}})
 
 
 @app.route('/', methods=['GET'])
