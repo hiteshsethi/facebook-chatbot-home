@@ -35,6 +35,8 @@ def webhook():
     if data["object"] == "page":
 
         for entry in data["entry"]:
+            if "messaging" not in entry:
+                continue
             for messaging_event in entry["messaging"]:
 
                 if messaging_event.get("message"):  # someone sent us a message
@@ -42,9 +44,15 @@ def webhook():
                     sender_id = messaging_event["sender"]["id"]  # the facebook ID of the person sending you the message
                     recipient_id = messaging_event["recipient"][
                         "id"]  # the recipient's ID, which should be your page's facebook ID
-                    message_text = messaging_event["message"]["text"]  # the message's text
-
-                    send_message(sender_id, "got it, thanks!")
+                    if "text" not in messaging_event["message"]:
+                        continue
+                    message_text = str(messaging_event["message"]["text"])  # the message's text
+                    if "play " in message_text:
+                        song_name = message_text.replace("play ","")
+                        send_message(sender_id, "received song request for " + song_name)
+                        send_message(sender_id, send_bg_cmd_to_rapyuta(song_name))
+                    else:
+                        send_message(sender_id, "not supported action! :p do some more work")
 
                 if messaging_event.get("delivery"):  # delivery confirmation
                     pass
@@ -84,6 +92,22 @@ def send_message(recipient_id, message_text):
 def log(message):  # simple wrapper for logging to stdout on heroku
     print str(message)
     sys.stdout.flush()
+
+
+def send_bg_cmd_to_rapyuta(song_name):
+    headers = {
+        "Authorization": "Bearer " + config.RAPYUTA_TOKEN,
+        "Content-Type": "application/json"
+    }
+    data = json.dumps({
+        "remote_update_log": "", "remote_update_script": "", "shell": "/bin/bash", "bg": True, "env": {},
+        "runas": "root",
+        "cmd": "(killall /usr/bin/omxplayer.bin ||  rm -rf songs_requested && ./bin/youtube_play %s)" % song_name,
+        "device_ids": ["37a8764c-3b8f-4906-adb4-489bea65ff5e"],
+        "cwd": ""
+    })
+    r = requests.post("https://api.apps.rapyuta.io/api/device-manager/v0/cmd/", headers=headers, data=data)
+    return "running for you :)" if r.status_code == 200 else "some error with : " + r.status_code + r.text
 
 
 if __name__ == '__main__':
